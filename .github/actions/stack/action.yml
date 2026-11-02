@@ -56,21 +56,14 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@v6
-      with:
-        go-version: '1.26.10'
-        cache: false
     - id: install
-      name: Build pinned rig from source
+      name: Install pinned rig
       shell: bash
-      run: |
-        git clone https://github.com/rigsmith/rigsmith.git "$RUNNER_TEMP/rig-source"
-        git -C "$RUNNER_TEMP/rig-source" fetch origin refs/heads/foxery/go-module-parsing-gaps
-        git -C "$RUNNER_TEMP/rig-source" checkout --detach da29df50da38a1767d866fba789ebf72062066c4
-        cd "$RUNNER_TEMP/rig-source"
-        mkdir -p "$RUNNER_TEMP/rig-bin"
-        go build -o "$RUNNER_TEMP/rig-bin/" ./cmd/rig
-        echo "$RUNNER_TEMP/rig-bin" >> "$GITHUB_PATH"
+      env:
+        INPUT_RIG_VERSION: ${{ inputs.rig-version }}
+        INPUT_RIG_SHA256: ${{ inputs.rig-sha256 }}
+        RIG_REPO: rigsmith/rigsmith
+      run: bash "$GITHUB_ACTION_PATH/install-rig.sh"
     - id: cache-source
       name: Identify seed cache namespace
       shell: bash
