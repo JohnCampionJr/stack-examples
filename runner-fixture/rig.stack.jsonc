@@ -2,11 +2,13 @@
   "repos": {
     "app": {
       "upstream": "github.com/rigsmith/stack-examples",
-      "upstreamCommit": "c6433a3757658b622d7ff45cf2568db7311e3cc6"
+      "upstreamCommit": "c6433a3757658b622d7ff45cf2568db7311e3cc6",
+      "fork": "github.com/rigsmith/stack-examples"
     },
     "lib": {
       "upstream": "github.com/rigsmith/stack-examples-lib",
-      "upstreamCommit": "e88acee6601441c50c0d8a6f25e2970988e2a595"
+      "upstreamCommit": "e88acee6601441c50c0d8a6f25e2970988e2a595",
+      "fork": "github.com/rigsmith/stack-examples-lib"
     }
   },
   "lastSync": {
