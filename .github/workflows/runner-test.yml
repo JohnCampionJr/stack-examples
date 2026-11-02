@@ -24,6 +24,9 @@ jobs:
           test -z "${GITHUB_TOKEN:-}"
           test -z "${GH_TOKEN:-}"
           echo 'No token variables passed to fixture commands; workflow references no secrets.'
+      - name: Capture generated summary files
+        shell: bash
+        run: python runner-fixture/evidence.py watch &
       - uses: ./.github/actions/stack
         id: stack
         with:
@@ -31,7 +34,7 @@ jobs:
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
-          test: dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
+          test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
       - name: Action outputs
         if: always()
         shell: bash
@@ -41,6 +44,7 @@ jobs:
           EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           printf 'commits=%s\ntest-result=%s\nexpected=%s\n' "$COMMITS" "$TEST_RESULT" "$EXPECTED"
+          python runner-fixture/evidence.py verify
           test -n "$COMMITS"
           echo "$COMMITS" | python -c 'import json,os,sys; assert json.load(sys.stdin)["app"] == os.environ["EXPECTED"]'
   seed:
@@ -64,6 +68,9 @@ jobs:
           test -z "${GITHUB_TOKEN:-}"
           test -z "${GH_TOKEN:-}"
           echo 'No token variables passed to fixture commands; workflow references no secrets.'
+      - name: Capture generated summary files
+        shell: bash
+        run: python runner-fixture/evidence.py watch &
       - uses: ./.github/actions/stack
         id: stack
         with:
@@ -71,7 +78,7 @@ jobs:
           seed: rigsmith/stack-examples@runner-test-seed
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
-          test: dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
+          test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
       - name: Action outputs
         if: always()
         shell: bash
@@ -81,6 +88,7 @@ jobs:
           EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           printf 'commits=%s\ntest-result=%s\nexpected=%s\n' "$COMMITS" "$TEST_RESULT" "$EXPECTED"
+          python runner-fixture/evidence.py verify
           test -n "$COMMITS"
           echo "$COMMITS" | python -c 'import json,os,sys; assert json.load(sys.stdin)["app"] == os.environ["EXPECTED"]'
   guard:
@@ -100,6 +108,9 @@ jobs:
           test -z "${GITHUB_TOKEN:-}"
           test -z "${GH_TOKEN:-}"
           echo 'No token variables passed to fixture commands; workflow references no secrets.'
+      - name: Capture generated summary files
+        shell: bash
+        run: python runner-fixture/evidence.py watch &
       - uses: ./.github/actions/stack
         id: stack
         with:
@@ -107,7 +118,7 @@ jobs:
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           guard-project: runner-fixture/dotnet/Runner.Tests.csproj
-          test: dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal'
+          test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal'
       - name: Action outputs
         if: always()
         shell: bash
@@ -117,5 +128,6 @@ jobs:
           EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           printf 'commits=%s\ntest-result=%s\nexpected=%s\n' "$COMMITS" "$TEST_RESULT" "$EXPECTED"
+          python runner-fixture/evidence.py verify
           test -n "$COMMITS"
           echo "$COMMITS" | python -c 'import json,os,sys; assert json.load(sys.stdin)["app"] == os.environ["EXPECTED"]'
