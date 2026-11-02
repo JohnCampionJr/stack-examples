@@ -17,6 +17,10 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.10'
+          cache: false
       - name: Checkout identity and secret boundary
         shell: bash
         run: |
@@ -30,11 +34,37 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
+          rig-version: v1.24.0
+          rig-sha256: ${{ matrix.os == 'ubuntu-latest' && '4c3ccc52e600fdce1b6c8afbf4be3af9da1cd67a8ec9c7e59395251d50572fc7' || '' }}
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
           test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
+      - name: Verify downloaded release archive
+        if: always()
+        shell: bash
+        env:
+          EXPECTED_PIN: ${{ matrix.os == 'ubuntu-latest' && '4c3ccc52e600fdce1b6c8afbf4be3af9da1cd67a8ec9c7e59395251d50572fc7' || '' }}
+        run: |
+          python - <<'PYCODE'
+          import hashlib, os, pathlib
+          os_name = {'Linux': 'linux', 'macOS': 'darwin', 'Windows': 'windows'}[os.environ['RUNNER_OS']]
+          arch = {'X64': 'amd64', 'ARM64': 'arm64'}[os.environ['RUNNER_ARCH']]
+          ext = 'zip' if os_name == 'windows' else 'tar.gz'
+          asset = f'rig_1.24.0_{os_name}_{arch}.{ext}'
+          paths = list(pathlib.Path(os.environ['RUNNER_TEMP']).glob('rig-bin.*/archive.' + ext))
+          assert len(paths) == 1, paths
+          archive = paths[0]
+          sums = dict(line.split()[::-1] for line in (archive.parent / 'checksums.txt').read_text().splitlines())
+          got = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert got == sums[asset], (asset, got, sums[asset])
+          assert (archive.parent / ('rig.exe' if os_name == 'windows' else 'rig')).is_file()
+          print(f'archive={asset} sha256={got} release-checksum=verified extracted-binary=present')
+          pin = os.environ.get('EXPECTED_PIN', '')
+          if pin:
+              assert got == pin
+              print('workflow-pin-check=passed')
+          PYCODE
       - name: Action outputs
         if: always()
         shell: bash
@@ -61,6 +91,10 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.10'
+          cache: false
       - name: Checkout identity and secret boundary
         shell: bash
         run: |
@@ -74,11 +108,36 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
+          rig-version: v1.24.0
           seed: rigsmith/stack-examples@runner-test-seed
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
           test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal' && cd runner-fixture/go && GOPROXY=off GOSUMDB=off go test -v ./...
+      - name: Verify downloaded release archive
+        if: always()
+        shell: bash
+        env:
+          EXPECTED_PIN: ''
+        run: |
+          python - <<'PYCODE'
+          import hashlib, os, pathlib
+          os_name = {'Linux': 'linux', 'macOS': 'darwin', 'Windows': 'windows'}[os.environ['RUNNER_OS']]
+          arch = {'X64': 'amd64', 'ARM64': 'arm64'}[os.environ['RUNNER_ARCH']]
+          ext = 'zip' if os_name == 'windows' else 'tar.gz'
+          asset = f'rig_1.24.0_{os_name}_{arch}.{ext}'
+          paths = list(pathlib.Path(os.environ['RUNNER_TEMP']).glob('rig-bin.*/archive.' + ext))
+          assert len(paths) == 1, paths
+          archive = paths[0]
+          sums = dict(line.split()[::-1] for line in (archive.parent / 'checksums.txt').read_text().splitlines())
+          got = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert got == sums[asset], (asset, got, sums[asset])
+          assert (archive.parent / ('rig.exe' if os_name == 'windows' else 'rig')).is_file()
+          print(f'archive={asset} sha256={got} release-checksum=verified extracted-binary=present')
+          pin = os.environ.get('EXPECTED_PIN', '')
+          if pin:
+              assert got == pin
+              print('workflow-pin-check=passed')
+          PYCODE
       - name: Action outputs
         if: always()
         shell: bash
@@ -101,6 +160,10 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.10'
+          cache: false
       - name: Checkout identity and secret boundary
         shell: bash
         run: |
@@ -114,11 +177,36 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
+          rig-version: v1.24.0
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           guard-project: runner-fixture/dotnet/Runner.Tests.csproj
           test: python runner-fixture/evidence.py inspect && dotnet test runner-fixture/dotnet/Runner.Tests.csproj --no-build --logger 'console;verbosity=normal'
+      - name: Verify downloaded release archive
+        if: always()
+        shell: bash
+        env:
+          EXPECTED_PIN: ''
+        run: |
+          python - <<'PYCODE'
+          import hashlib, os, pathlib
+          os_name = {'Linux': 'linux', 'macOS': 'darwin', 'Windows': 'windows'}[os.environ['RUNNER_OS']]
+          arch = {'X64': 'amd64', 'ARM64': 'arm64'}[os.environ['RUNNER_ARCH']]
+          ext = 'zip' if os_name == 'windows' else 'tar.gz'
+          asset = f'rig_1.24.0_{os_name}_{arch}.{ext}'
+          paths = list(pathlib.Path(os.environ['RUNNER_TEMP']).glob('rig-bin.*/archive.' + ext))
+          assert len(paths) == 1, paths
+          archive = paths[0]
+          sums = dict(line.split()[::-1] for line in (archive.parent / 'checksums.txt').read_text().splitlines())
+          got = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert got == sums[asset], (asset, got, sums[asset])
+          assert (archive.parent / ('rig.exe' if os_name == 'windows' else 'rig')).is_file()
+          print(f'archive={asset} sha256={got} release-checksum=verified extracted-binary=present')
+          pin = os.environ.get('EXPECTED_PIN', '')
+          if pin:
+              assert got == pin
+              print('workflow-pin-check=passed')
+          PYCODE
       - name: Action outputs
         if: always()
         shell: bash
@@ -131,3 +219,17 @@ jobs:
           python runner-fixture/evidence.py verify
           test -n "$COMMITS"
           echo "$COMMITS" | python -c 'import json,os,sys; assert json.load(sys.stdin)["app"] == os.environ["EXPECTED"]'
+  wrong-pin-must-fail:
+    name: Wrong release checksum pin (must fail install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: ./.github/actions/stack
+        with:
+          rig-version: v1.24.0
+          rig-sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+          manifest: runner-fixture/rig.stack.jsonc
+          member: app
