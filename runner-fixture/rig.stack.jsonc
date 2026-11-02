@@ -1,0 +1,16 @@
+{
+  "repos": {
+    "app": {
+      "upstream": "github.com/rigsmith/stack-examples",
+      "upstreamCommit": "c6433a3757658b622d7ff45cf2568db7311e3cc6"
+    },
+    "lib": {
+      "upstream": "github.com/rigsmith/stack-examples-lib",
+      "upstreamCommit": "e88acee6601441c50c0d8a6f25e2970988e2a595"
+    }
+  },
+  "lastSync": {
+    "app": "c6433a3757658b622d7ff45cf2568db7311e3cc6",
+    "lib": "e88acee6601441c50c0d8a6f25e2970988e2a595"
+  }
+}

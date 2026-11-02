@@ -1,0 +1,225 @@
+name: Stackspace CI
+description: Build and test the checkout against sibling sources in a temporary stackspace.
+inputs:
+  manifest:
+    description: Path to a committed rig.stack.jsonc; exclusive with seed.
+    default: ''
+  topic:
+    description: Apply all open proposal PR heads in this manifest topic (read-only token, no secrets).
+    default: ''
+  seed:
+    description: Manifest seed (owner/repo@ref, URL or local path); exactly one of seed or manifest is required.
+    default: ''
+  member:
+    description: Member prefix; otherwise match origin URL.
+    default: ''
+  rig-version:
+    description: Exact rig tag containing stack ci; required until this verb is released.
+    required: true
+  rig-sha256:
+    description: Expected archive SHA256 pinned in the calling workflow (recommended).
+    default: ''
+  cache-history:
+    description: Trust shared history caches; disabled for fork PRs.
+    default: 'true'
+  cache-packages:
+    description: Restore and save shared package downloads; disabled for fork PRs.
+    default: 'true'
+  allowed-hosts:
+    description: Comma-separated allowed fork and upstream hosts.
+    default: github.com
+  build:
+    description: Build command in the member directory.
+    default: rig build
+  test:
+    description: Test command in the member directory. Results stream to the job log.
+    default: rig test
+  guard-project:
+    description: Member-relative .NET project to build through ci-guard (replaces build).
+    default: ''
+  strict:
+    description: Keep all guarded warnings as errors.
+    default: 'false'
+  dependencies:
+    description: Check and publish topic dependency statuses (optional statuses write permission).
+    default: 'true'
+  upstream-tip:
+    description: Use upstream tips instead of manifest cursors.
+    default: 'false'
+outputs:
+  commits:
+    description: JSON object mapping members to resolved commits.
+    value: ${{ steps.run.outputs.commits }}
+  test-result:
+    description: Test phase result; empty when not reached.
+    value: ${{ steps.run.outputs.test-result }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.26.10'
+        cache: false
+    - id: install
+      name: Build pinned rig from source
+      shell: bash
+      run: |
+        git clone https://github.com/rigsmith/rigsmith.git "$RUNNER_TEMP/rig-source"
+        git -C "$RUNNER_TEMP/rig-source" checkout --detach 626eb049905de262a29a9b027a2538b1f024e8d6
+        cd "$RUNNER_TEMP/rig-source"
+        mkdir -p "$RUNNER_TEMP/rig-bin"
+        go build -o "$RUNNER_TEMP/rig-bin/" ./cmd/rig
+        echo "$RUNNER_TEMP/rig-bin" >> "$GITHUB_PATH"
+    - id: cache-source
+      name: Identify seed cache namespace
+      shell: bash
+      env:
+        STACK_SEED: ${{ inputs.seed }}
+      run: |
+        # Hash the reference so credentials or URL punctuation never enter keys.
+        if [[ -n "$STACK_SEED" ]]; then
+          printf 'seed=%s\n' "$(printf '%s' "$STACK_SEED" | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Restore josh binaries and object history
+      if: ${{ inputs.topic == '' && inputs.cache-history == 'true' && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) }}
+      id: history
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.local/share/rigsmith/josh
+          ~/.cache/rigsmith/josh
+          ~/Library/Caches/rigsmith/josh
+          ~/AppData/Local/rigsmith/josh
+          ${{ runner.temp }}/stack-history
+        key: stack-history-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rig-version }}-${{ inputs.seed != '' && format('seed-{0}-{1}-{2}-{3}-{4}', steps.cache-source.outputs.seed, github.run_id, github.run_attempt, github.job, strategy.job-index) || hashFiles(inputs.manifest) }}
+        restore-keys: |
+          stack-history-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rig-version }}-
+    - name: Restore package downloads
+      if: ${{ inputs.topic == '' && inputs.cache-packages == 'true' && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) }}
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.nuget/packages
+          ~/.npm
+          ~/go/pkg/mod
+          ~/.cargo/registry
+          ~/.cargo/git
+        # Seed keys advance each run/attempt so partial restores can save updates.
+        # Cursors in the manifest cover every sibling's lockfiles and pins;
+        # checkout hashes cover lockfile edits in the selected PR.
+        key: stack-packages-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.seed != '' && format('seed-{0}-{1}-{2}-{3}-{4}', steps.cache-source.outputs.seed, github.run_id, github.run_attempt, github.job, strategy.job-index) || hashFiles(inputs.manifest, '**/*lock*', '**/go.sum', '**/global.json', '**/Directory.Packages.props', '**/NuGet.config', '**/rust-toolchain*') }}
+        restore-keys: |
+          stack-packages-v1-${{ runner.os }}-${{ runner.arch }}-
+    - id: run
+      name: Rebuild, wire, build and test
+      shell: bash
+      env:
+        STACK_SEED: ${{ inputs.seed }}
+        STACK_MANIFEST: ${{ inputs.manifest }}
+        GITHUB_TOKEN: ${{ inputs.topic != '' && github.token || '' }}
+        STACK_TOPIC: ${{ inputs.topic }}
+        STACK_MEMBER: ${{ inputs.member }}
+        STACK_BUILD: ${{ inputs.build }}
+        STACK_TEST: ${{ inputs.test }}
+        STACK_GUARD_PROJECT: ${{ inputs.guard-project }}
+        STACK_STRICT: ${{ inputs.strict }}
+        STACK_CACHE_HISTORY: ${{ inputs.cache-history }}
+        STACK_CACHE_PACKAGES: ${{ inputs.cache-packages }}
+        STACK_FORK_PR: ${{ github.event.pull_request != null && github.event.pull_request.head.repo.full_name != github.repository }}
+        STACK_TIP: ${{ inputs.upstream-tip }}
+        STACK_ALLOWED_HOSTS: ${{ inputs.allowed-hosts }}
+        RIG_STACK_CI_VERIFIED: '1'
+        RIG_STACK_CACHE: ${{ inputs.topic == '' && inputs.cache-history == 'true' && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && format('{0}/stack-history', runner.temp) || '' }}
+        RIG_STACK_CACHE_REPORT: ${{ runner.temp }}/stack-cache-report
+        RIG_STACK_PROVENANCE: ${{ runner.temp }}/stack-provenance.json
+        STACK_DEPENDENCIES: ${{ inputs.dependencies }}
+      run: |
+        case "$STACK_TIP" in
+          true|false) ;;
+          *) echo 'upstream-tip must be exactly true or false' >&2; exit 1 ;;
+        esac
+        case "$STACK_DEPENDENCIES" in
+          true|false) ;;
+          *) echo 'dependencies must be exactly true or false' >&2; exit 1 ;;
+        esac
+        case "$STACK_CACHE_HISTORY" in
+          true|false) ;;
+          *) echo 'cache-history must be exactly true or false' >&2; exit 1 ;;
+        esac
+        case "$STACK_CACHE_PACKAGES" in
+          true|false) ;;
+          *) echo 'cache-packages must be exactly true or false' >&2; exit 1 ;;
+        esac
+        if [[ "$STACK_FORK_PR" == true ]]; then
+          unset RIG_STACK_CACHE
+          STACK_CACHE_HISTORY=false
+        fi
+        case "$STACK_STRICT" in
+          true|false) ;;
+          *) echo 'strict must be exactly true or false' >&2; exit 1 ;;
+        esac
+        if [[ -z "$STACK_MANIFEST" && -z "$STACK_SEED" || -n "$STACK_MANIFEST" && -n "$STACK_SEED" ]]; then
+          echo 'exactly one of manifest or seed is required' >&2; exit 10
+        fi
+        args=(stack ci --cache-history="$STACK_CACHE_HISTORY" --allowed-hosts "$STACK_ALLOWED_HOSTS" --member "$STACK_MEMBER" --build "$STACK_BUILD" --test "$STACK_TEST")
+        if [[ -n "$STACK_TOPIC" ]]; then args+=(--topic "$STACK_TOPIC"); fi
+        if [[ -n "$STACK_MANIFEST" ]]; then args+=(--manifest "$STACK_MANIFEST"); fi
+        if [[ -n "$STACK_SEED" ]]; then args+=(--seed "$STACK_SEED"); fi
+        if [[ "$STACK_TIP" == true ]]; then args+=(--upstream-tip); fi
+        if [[ -n "$STACK_GUARD_PROJECT" ]]; then args+=(--guard-project "$STACK_GUARD_PROJECT"); fi
+        if [[ "$STACK_STRICT" == true ]]; then args+=(--strict); fi
+        rm -f "$RIG_STACK_CACHE_REPORT" "$RIG_STACK_PROVENANCE"
+        rig "${args[@]}"
+    - name: Report consumed member cache hits
+      if: always()
+      shell: bash
+      env:
+        STACK_FORK_PR: ${{ github.event.pull_request != null && github.event.pull_request.head.repo.full_name != github.repository }}
+      run: |
+        if [[ "$STACK_FORK_PR" == true ]]; then
+          printf '\nShared history and package caches skipped because this is a fork PR.\n' >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        hits=0; total=0
+        if [[ -f "$RUNNER_TEMP/stack-cache-report" ]]; then
+          while IFS=$'\t' read -r member source commit; do
+            [[ "$source" == cache || "$source" == fetched ]] || continue
+            total=$((total + 1))
+            if [[ "$source" == cache ]]; then hits=$((hits + 1)); fi
+          done < "$RUNNER_TEMP/stack-cache-report"
+        fi
+        rate=0
+        if (( total > 0 )); then rate=$((100 * hits / total)); fi
+        printf '\nFiltered member cache: %s/%s consumed hits (%s%%). Each hit skipped upstream fetch and filtering.\n' "$hits" "$total" "$rate" >> "$GITHUB_STEP_SUMMARY"
+        printf 'Cache hits trust restored history; they do not verify the upstream cursor. Binary and package matches are not counted as work saved.\n' >> "$GITHUB_STEP_SUMMARY"
+    - name: Upload resolved member provenance
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: stack-provenance-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/stack-provenance.json
+        if-no-files-found: ignore
+    - name: Report topic dependencies
+      if: ${{ always() && steps.install.outcome == 'success' && inputs.topic == '' && inputs.dependencies == 'true' }}
+      shell: bash
+      env:
+        STACK_MANIFEST: ${{ inputs.manifest }}
+        STACK_SEED: ${{ inputs.seed }}
+        STACK_ALLOWED_HOSTS: ${{ inputs.allowed-hosts }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        if [[ -z "${STACK_MANIFEST:-}" && -z "${STACK_SEED:-}" || -n "${STACK_MANIFEST:-}" && -n "${STACK_SEED:-}" ]]; then
+          echo 'exactly one of manifest or seed is required' >&2; exit 10
+        fi
+        args=(stack deps --publish)
+        if [[ -n "${STACK_SEED:-}" ]]; then
+          args+=(--seed "$STACK_SEED" --allowed-hosts "$STACK_ALLOWED_HOSTS")
+        else
+          args+=(--manifest "$STACK_MANIFEST")
+        fi
+        if rig "${args[@]}"; then
+          :
+        else
+          status=$?
+          echo "::warning::Stack dependency reporting failed (exit $status); build and test results are unchanged. Check the rig version and summary output."
+        fi
