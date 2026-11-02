@@ -30,7 +30,7 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-94f4db046c20392af21f448c2c4ca5d1b8a459a7
+          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
@@ -74,7 +74,7 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-94f4db046c20392af21f448c2c4ca5d1b8a459a7
+          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
           seed: rigsmith/stack-examples@runner-test-seed
           member: app
           build: dotnet build runner-fixture/dotnet/Runner.Tests.csproj
@@ -114,7 +114,7 @@ jobs:
       - uses: ./.github/actions/stack
         id: stack
         with:
-          rig-version: source-94f4db046c20392af21f448c2c4ca5d1b8a459a7
+          rig-version: source-da29df50da38a1767d866fba789ebf72062066c4
           manifest: runner-fixture/rig.stack.jsonc
           member: app
           guard-project: runner-fixture/dotnet/Runner.Tests.csproj

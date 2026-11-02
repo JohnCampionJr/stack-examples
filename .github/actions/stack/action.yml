@@ -65,7 +65,8 @@ runs:
       shell: bash
       run: |
         git clone https://github.com/rigsmith/rigsmith.git "$RUNNER_TEMP/rig-source"
-        git -C "$RUNNER_TEMP/rig-source" checkout --detach 94f4db046c20392af21f448c2c4ca5d1b8a459a7
+        git -C "$RUNNER_TEMP/rig-source" fetch origin refs/heads/foxery/go-module-parsing-gaps
+        git -C "$RUNNER_TEMP/rig-source" checkout --detach da29df50da38a1767d866fba789ebf72062066c4
         cd "$RUNNER_TEMP/rig-source"
         mkdir -p "$RUNNER_TEMP/rig-bin"
         go build -o "$RUNNER_TEMP/rig-bin/" ./cmd/rig
